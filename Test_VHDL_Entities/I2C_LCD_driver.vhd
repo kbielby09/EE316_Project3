@@ -139,4 +139,24 @@ begin
   end if;
   end process;
 
+  process(byteSel)
+  begin
+  	case byteSel is
+  		when 0 => data_wr <= X"76";
+  		when 1 => data_wr <= X"76";
+  		when 2 => data_wr <= X"76";
+  		when 3 => data_wr <= X"7A";
+  		when 4 => data_wr <= X"FF";
+  		when 5 => data_wr <= X"77";  -- ox79
+  		when 6 => data_wr <= X"00";  -- 0
+  		when 7 => data_wr <= X"79";
+  		when 8 => data_wr <= X"00";
+  		when 9 => data_wr <= "0000"&iData(15 downto 12);
+  		when 10 => data_wr <= "0000"&iData(11 downto 8);
+  		when 11 => data_wr <= "0000"&iData(7 downto 4);
+  		when 12 => data_wr <= "0000"&iData(3 downto 0);
+  		when others => data_wr <= X"76";
+  	end case;
+  end process;
+
 end Behavioral;
