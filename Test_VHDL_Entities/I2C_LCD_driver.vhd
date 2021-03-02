@@ -84,12 +84,12 @@ architecture Behavioral of I2C_LCD_driver is
 
   signal lcd_init_state : INIT_STATE := INIT0;
 
-  signal i2c_addr : std_logic_vector(6 downto 0);
+  signal i2c_addr : std_logic_vector(7 downto 0);
   signal regBusy, sigBusy, reset_n, i2c_ena, i2c_rw, ack_err : std_logic;
   signal data_wr: std_logic_vector(7 downto 0);
   signal byteSel : integer := 0;
   signal regData: std_logic_vector(15 downto 0);
-  signal refersh : std_logic := 0;
+  signal refresh : std_logic := '0';
   signal previous_source : std_logic_vector(2 downto 0);
   signal previous_generation : std_logic := '0';
 
@@ -104,312 +104,160 @@ begin
   	clk => I_CLK_50MHZ,
   	reset_n => I_RESET_N,
   	ena => i2c_ena,
-  	addr => i2c_addr,
+  	addr => i2c_addr(6 downto 0),
   	rw => i2c_rw,
   	data_wr => data_wr,
   	busy => sigBusy,
   	data_rd => OPEN,      -- WHATS THIS?
   	ack_error => ack_err,
-  	sda => oSDA,
-  	scl => oSCL
+  	sda => SDA,
+  	scl => SCL
   );
 
   REFRESH_DISPLAY : process(I_RESET_N, I_CLK_50MHZ)
   begin
     if (I_RESET_N = '0') then
-      refersh <= '0';
+      refresh <= '0';
     elsif (rising_edge(I_CLK_50MHZ)) then
       previous_source <= source;
       previous_generation <= Generation;
       if (previous_source /= source or previous_generation /= Generation) then
-        refersh <= '1';
+        refresh <= '1';
       end if;
+      refresh <= '0';
     end if;
   end process;
 
-  INIT_COUNTER : process(I_CLK_50MHZ, I_RESET_N)
-    begin
-      if (rising_edge(I_CLK_50MHZ)) then
-        if (lcd_initialized = '0') then
-          sixteen_ms_count        <= sixteen_ms_count + 1;
-          forty_four_micro_elapse <= '0';
+  -- INIT_COUNTER : process(I_CLK_50MHZ, I_RESET_N)
+  --   begin
+  --     if (rising_edge(I_CLK_50MHZ)) then
+  --       if (lcd_initialized = '0') then
+  --         sixteen_ms_count        <= sixteen_ms_count + 1;
+  --         forty_four_micro_elapse <= '0';
+  --
+  --         if (sixteen_ms_count = "11000011010100000000"
+  --             and lcd_init_state = INIT0) then
+  --           sixteen_ms_elapse <= '1';
+  --           sixteen_ms_count <= (others => '0');
+  --
+  --         elsif (sixteen_ms_count = "111101000010010000"
+  --                and lcd_init_state = INIT1) then
+  --           five_ms_elapse <= '1';
+  --           sixteen_ms_count <= (others => '0');
+  --
+  --         elsif (sixteen_ms_count = "1001110111010"
+  --                and lcd_init_state = INIT2) then
+  --             one_hundred_micro_elapse <= '1';
+  --             sixteen_ms_count <= (others => '0');
+  --
+  --         elsif (sixteen_ms_count = "100010011000"
+  --                and (lcd_init_state = INIT3
+  --                     or lcd_init_state = INIT4
+  --                     or lcd_init_state = INIT5
+  --                     or lcd_init_state = INIT6
+  --                     or lcd_init_state = INIT7)) then
+  --           forty_four_micro_elapse <= '1';
+  --           sixteen_ms_count <= (others => '0');
+  --         end if;
+  --       end if;
+  --     end if;
+  -- end process INIT_COUNTER;
 
-          if (sixteen_ms_count = "11000011010100000000"
-              and lcd_init_state = INIT0) then
-            sixteen_ms_elapse <= '1';
-            sixteen_ms_count <= (others => '0');
+  -- DIGIT_STATE : process(I_CLK_50MHZ, I_RESET_N)
+  --   begin
+  --     -- if (I_RESET_N = '0') then
+  --     --   current_digit <= DIGIT0;
+  --     -- elsif (rising_edge(I_CLK_50MHZ)) then
+  --     if (rising_edge(I_CLK_50MHZ)) then
+  --       if (lcd_initialized = '1' and DATA_CHANGE = '1') then
+  --         current_digit <= DIGIT0;
+  --       end if;
+  --
+  --       if (I_RESET_N = '0' and previous_reset = '1') then
+  --         current_digit <= DIGIT0;
+  --       end if;
+  --
+  --       if (lcd_initialized = '1'
+  --           and lcd_enable = '0'
+  --           and previous_enable_value = '1') then
+  --         -- if (DATA_CHANGE = '1') then
+  --         --   current_digit <= DIGIT0;
+  --         -- end if;
+  --         case (current_digit) is
+  --           when DIGIT0 =>
+  --             current_digit <= DIGIT1;
+  --           when DIGIT1 =>
+  --             current_digit <= DIGIT2;
+  --           when DIGIT2 =>
+  --             current_digit <= DIGIT3;
+  --           when DIGIT3 =>
+  --             current_digit <= DIGIT4;
+  --           when DIGIT4 =>
+  --             current_digit <= DIGIT5;
+  --           when DIGIT5 =>
+  --             current_digit <= DIGIT6;
+  --           when DIGIT6 =>
+  --             current_digit <= DIGIT7;
+  --           when DIGIT7 =>
+  --             current_digit <= DIGIT8;
+  --           when DIGIT8 =>
+  --             current_digit <= DIGIT9;
+  --           when DIGIT9 =>
+  --             current_digit <= DIGIT10;
+  --           when DIGIT10 =>
+  --             current_digit <= DIGIT11;
+  --           when DIGIT11 =>
+  --             current_digit <= DIGIT12;
+  --           when DIGIT12 =>
+  --             current_digit <= DIGIT13;
+  --           when DIGIT13 =>
+  --             current_digit <= DIGIT14;
+  --           when DIGIT14 =>
+  --             current_digit <= DIGIT15;
+  --           when DIGIT15 =>
+  --             current_digit <= DIGIT16;
+  --           when DIGIT16 =>
+  --             current_digit <= DIGIT17;
+  --           when DIGIT17 =>
+  --             current_digit <= DIGIT18;
+  --           when DIGIT18 =>
+  --             current_digit <= DIGIT19;
+  --           when DIGIT19 =>
+  --             current_digit <= DIGIT20;
+  --           when DIGIT20 =>
+  --             current_digit <= DIGIT21;
+  --           when DIGIT21 =>
+  --             current_digit <= DIGIT22;
+  --           when DIGIT22 =>
+  --             current_digit <= DIGIT23;
+  --           when DIGIT23 =>
+  --             current_digit <= DIGIT24;
+  --           when DIGIT24 =>
+  --             current_digit <= DIGIT25;
+  --           when DIGIT25 =>
+  --             current_digit <= DIGIT26;
+  --           when DIGIT26 =>
+  --             current_digit <= DIGIT27;
+  --           when DIGIT27 =>
+  --             current_digit <= DIGIT28;
+  --           when DIGIT28 =>
+  --             current_digit <= DIGIT29;
+  --           when DIGIT29 =>
+  --             current_digit <= DIGIT30;
+  --           when DIGIT30 =>
+  --             current_digit <= DIGIT31;
+  --           when DIGIT31 =>
+  --             current_digit <= DIGIT32;
+  --           when DIGIT32 =>
+  --             -- wait for display data change
+  --         end case;
+  --       end if;
+  --     end if;
+  -- end process DIGIT_STATE;
 
-          elsif (sixteen_ms_count = "111101000010010000"
-                 and lcd_init_state = INIT1) then
-            five_ms_elapse <= '1';
-            sixteen_ms_count <= (others => '0');
-
-          elsif (sixteen_ms_count = "1001110111010"
-                 and lcd_init_state = INIT2) then
-              one_hundred_micro_elapse <= '1';
-              sixteen_ms_count <= (others => '0');
-
-          elsif (sixteen_ms_count = "100010011000"
-                 and (lcd_init_state = INIT3
-                      or lcd_init_state = INIT4
-                      or lcd_init_state = INIT5
-                      or lcd_init_state = INIT6
-                      or lcd_init_state = INIT7)) then
-            forty_four_micro_elapse <= '1';
-            sixteen_ms_count <= (others => '0');
-          end if;
-        end if;
-      end if;
-  end process INIT_COUNTER;
-
-  -- Process to change the state of the LCD
-  DISPLAY_STATE : process(I_CLK_50MHZ, I_RESET_N)
-    begin
-      if (rising_edge(I_CLK_50MHZ)) then
-        if (lcd_initialized = '0') then
-          case(lcd_init_state) is
-            when INIT0 =>
-              if (sixteen_ms_elapse = '1') then
-                lcd_init_state <= INIT1;
-              end if;
-            when INIT1 =>
-              if (five_ms_elapse = '1') then
-                lcd_init_state <= INIT2;
-              end if;
-            when INIT2 =>
-              if (one_hundred_micro_elapse = '1') then
-                lcd_init_state <= INIT3;
-              end if;
-            when INIT3 =>
-              if (forty_four_micro_elapse = '1') then
-                lcd_init_state <= INIT4;
-              end if;
-            when INIT4 =>
-              if (forty_four_micro_elapse = '1') then
-                lcd_init_state <= INIT5;
-              end if;
-            when INIT5 =>
-              if (forty_four_micro_elapse = '1') then
-                lcd_init_state <= INIT6;
-              end if;
-            when INIT6 =>
-              if (forty_four_micro_elapse = '1') then
-                lcd_init_state <= INIT7;
-              end if;
-            when INIT7 =>
-              if (forty_four_micro_elapse = '1') then
-                lcd_initialized   <= '1';
-              end if;
-          end case;
-        end if;
-      end if;
-  end process;
-
-  DIGIT_STATE : process(I_CLK_50MHZ, I_RESET_N)
-    begin
-      -- if (I_RESET_N = '0') then
-      --   current_digit <= DIGIT0;
-      -- elsif (rising_edge(I_CLK_50MHZ)) then
-      if (rising_edge(I_CLK_50MHZ)) then
-        if (lcd_initialized = '1' and DATA_CHANGE = '1') then
-          current_digit <= DIGIT0;
-        end if;
-
-        if (I_RESET_N = '0' and previous_reset = '1') then
-          current_digit <= DIGIT0;
-        end if;
-
-        if (lcd_initialized = '1'
-            and lcd_enable = '0'
-            and previous_enable_value = '1') then
-          -- if (DATA_CHANGE = '1') then
-          --   current_digit <= DIGIT0;
-          -- end if;
-          case (current_digit) is
-            when DIGIT0 =>
-              current_digit <= DIGIT1;
-            when DIGIT1 =>
-              current_digit <= DIGIT2;
-            when DIGIT2 =>
-              current_digit <= DIGIT3;
-            when DIGIT3 =>
-              current_digit <= DIGIT4;
-            when DIGIT4 =>
-              current_digit <= DIGIT5;
-            when DIGIT5 =>
-              current_digit <= DIGIT6;
-            when DIGIT6 =>
-              current_digit <= DIGIT7;
-            when DIGIT7 =>
-              current_digit <= DIGIT8;
-            when DIGIT8 =>
-              current_digit <= DIGIT9;
-            when DIGIT9 =>
-              current_digit <= DIGIT10;
-            when DIGIT10 =>
-              current_digit <= DIGIT11;
-            when DIGIT11 =>
-              current_digit <= DIGIT12;
-            when DIGIT12 =>
-              current_digit <= DIGIT13;
-            when DIGIT13 =>
-              current_digit <= DIGIT14;
-            when DIGIT14 =>
-              current_digit <= DIGIT15;
-            when DIGIT15 =>
-              current_digit <= DIGIT16;
-            when DIGIT16 =>
-              current_digit <= DIGIT17;
-            when DIGIT17 =>
-              current_digit <= DIGIT18;
-            when DIGIT18 =>
-              current_digit <= DIGIT19;
-            when DIGIT19 =>
-              current_digit <= DIGIT20;
-            when DIGIT20 =>
-              current_digit <= DIGIT21;
-            when DIGIT21 =>
-              current_digit <= DIGIT22;
-            when DIGIT22 =>
-              current_digit <= DIGIT23;
-            when DIGIT23 =>
-              current_digit <= DIGIT24;
-            when DIGIT24 =>
-              current_digit <= DIGIT25;
-            when DIGIT25 =>
-              current_digit <= DIGIT26;
-            when DIGIT26 =>
-              current_digit <= DIGIT27;
-            when DIGIT27 =>
-              current_digit <= DIGIT28;
-            when DIGIT28 =>
-              current_digit <= DIGIT29;
-            when DIGIT29 =>
-              current_digit <= DIGIT30;
-            when DIGIT30 =>
-              current_digit <= DIGIT31;
-            when DIGIT31 =>
-              current_digit <= DIGIT32;
-            when DIGIT32 =>
-              -- wait for display data change
-          end case;
-        end if;
-      end if;
-  end process DIGIT_STATE;
-
-  -- Process to display data on lcd depending on mode of operation
-  DISPLAY_VALUE : process(I_CLK_50MHZ, I_RESET_N)
-    begin
-      if (rising_edge(I_CLK_50MHZ)) then
-        case( lcd_init_state ) is
-          when INIT0 =>
-                -- waiting for VCC to rise
-          when INIT1 =>
-              init_digit <= "00110000";
-          when INIT2 =>
-              init_digit <= "00110000";
-
-         when INIT3 =>
-             init_digit <= "00110000";
-
-         when INIT4 =>
-             init_digit <= "00111000";
-
-         when INIT5 =>
-             init_digit <= "00001111";
-
-         when INIT6 =>
-             init_digit <= "00000001";
-
-         when INIT7 =>
-             init_digit <= "00000110";
-        end case;
-      end if;
-  end process;
-
-  CURRENT_STATE : process(I_CLK_50MHZ, I_RESET_N)
+  process(I_CLK_50MHZ)
   begin
-    if (rising_edge(I_CLK_50MHZ)) then
-      if (lcd_initialized = '1'
-          and lcd_enable = '1') then
-            case( current_digit ) is
-              when DIGIT0 =>
-                next_digit <= X"80"; -- Reset to line 1
-              when DIGIT1 =>
-                next_digit <= "01001001"; -- I
-              when DIGIT2 =>
-                next_digit <= "01101110"; -- n
-              when DIGIT3 =>
-                next_digit <= "01101001"; -- i
-              when DIGIT4 =>
-                next_digit <= "01110100"; -- t
-              when DIGIT5 =>
-                next_digit <= "01101001"; -- i
-              when DIGIT6 =>
-                next_digit <= "01100001"; -- a
-              when DIGIT7 =>
-                next_digit <= "01101100"; -- l
-              when DIGIT8 =>
-                next_digit <= "01101001"; -- i
-              when DIGIT9 =>
-                next_digit <= "01111010"; -- z
-              when DIGIT10 =>
-                next_digit <= "01101001"; -- i
-              when DIGIT11 =>
-                next_digit <= "01101110"; -- n
-              when DIGIT12 =>
-                next_digit <= "01100111"; -- g
-              when DIGIT13 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT14 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT15 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT16 =>
-                next_digit <= X"C0";
-              when DIGIT17 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT18 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT19 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT20 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT21 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT22 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT23 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT24 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT25 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT26 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT27 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT28 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT29 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT30 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT31 =>
-                next_digit <= "00100000"; -- space
-              when DIGIT32 =>
-                next_digit <= "00100000"; -- space
-              when others =>
-            end case;
-      end if;
-    end if;
-  end process;
-
-
-  process(clk)
-  begin
-  if(rising_edge(clk)) then
-  	regData <= iData;
+  if(rising_edge(I_CLK_50MHZ)) then
   	regBusy <= sigBusy;
   	case state is
   		when start =>
@@ -427,23 +275,23 @@ begin
   			end if;
   		when write_data =>
   		if regBusy/=sigBusy and sigBusy='0' then
-  			if byteSel /= 12 then
+  			if byteSel /= 11 then
   				byteSel <= byteSel + 1;
   				state <= write_data;
   			else
-  				byteSel <= 9;
+  				byteSel <= 0;
   				i2c_ena <= '0';
   				state <= repeat;
   			end if;
   		end if;
   		when repeat => -- wait for new data
   			i2c_ena <= '0';
-  			if regData /= iData then
-  				Cont <= X"03FFF";
+  			-- if refresh = '1' then
+  				Cont <= X"09FFE";
   				state <= start;
-  			else
-  				state <= repeat;
-  			end if;
+  			-- else
+  				-- state <= repeat;
+  			-- end if;
   		end case;
   end if;
   end process;
@@ -451,33 +299,57 @@ begin
   process(byteSel) -- TODO change lookup table for Initializing and operation
   begin
   	case byteSel is
+      -----------------------begin initialization sequence----------------------
   		when 0 =>
-        data_wr <= X"30";
+        data_wr <= X"34";
   		when 1 =>
-        data_wr <= X"30";
+        data_wr <= X"34";
   		when 2 =>
-        data_wr <= X"30";
+        data_wr <= X"34";
   		when 3 =>
-        data_wr <= X"20";
+        data_wr <= X"24";
   		when 4 =>
-        data_wr <= X"20";
+        data_wr <= X"24";
   		when 5 =>
-        data_wr <= X"C0";  -- ox79
+        data_wr <= X"C4";
   		when 6 =>
-        data_wr <= X"00";  -- 0
+        data_wr <= X"04";
   		when 7 =>
-        data_wr <= X"80";
+        data_wr <= X"84";
   		when 8 =>
-        data_wr <= X"";
+        data_wr <= X"04";
   		when 9 =>
-        data_wr <= ;
+        data_wr <= X"14";
   		when 10 =>
-        data_wr <= ;
+        data_wr <= X"04";
   		when 11 =>
-        data_wr <= ;
-  		when 12 =>
-        data_wr <= ;
-  		when others => data_wr <= X"76";
+        data_wr <= X"34";
+      ---------------------------end initialization-----------------------------
+      -- when 12 =>
+      --   if (source = "00") then
+      --
+      --   elsif (source = "01") then
+      --   elsif (source = "10") then
+      --
+      --   end if;
+      -- when 13 =>
+      --   data_wr <= x"";
+      -- when 14 =>
+      --   data_wr <= x"";
+      -- when 15 =>
+      --   data_wr <= x"";
+      -- when 16 =>
+      --   data_wr <= x"";
+      -- when 17 =>
+      --   data_wr <= x"";
+      -- when 18 =>
+      --   data_wr <= x"";
+      -- when 19 =>
+      --   data_wr <= x"";
+      -- when 20 =>
+      --   data_wr <= x"";
+  		when others =>
+      -- data_wr <= X"76";
   	end case;
   end process;
 
