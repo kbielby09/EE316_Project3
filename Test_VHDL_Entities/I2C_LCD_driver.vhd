@@ -35,7 +35,7 @@ use ieee.numeric_std.all;
 entity I2C_LCD_driver is
  Port (
    I_RESET_N   : in std_logic;
-   I_CLK_50MHZ : in std_logic;
+   I_CLK_125MHZ : in std_logic;
 
    SDA : inout std_logic;
    SCL : inout std_logic;
@@ -47,6 +47,17 @@ entity I2C_LCD_driver is
 end I2C_LCD_driver;
 
 architecture Behavioral of I2C_LCD_driver is
+
+  component ila_0 is
+    port(
+    clk : in std_logic;
+    probe0 : in std_logic_vector(19 downto 0);
+    probe1 : in std_logic_vector(7 downto 0);
+    probe2 : in std_logic;
+    probe3 : in std_logic_vector(20 downto 0)
+    );
+
+  end component;
 
   component i2c_master is
   GENERIC(
@@ -66,23 +77,23 @@ architecture Behavioral of I2C_LCD_driver is
       scl       : INOUT  STD_LOGIC);                   --serial clock output of i2c bus
   END component i2c_master;
 
-  signal Cont 		: unsigned(19 downto 0) := X"03FFF";
+  signal Cont 		: unsigned(19 downto 0) := X"2EB13";
 
   type state_type is (start, write_data, repeat);
   signal state : state_type := start;
 
-  type INIT_STATE is (
-      INIT0,
-      INIT1,
-      INIT2,
-      INIT3,
-      INIT4,
-      INIT5,
-      INIT6,
-      INIT7
-  );
-
-  signal lcd_init_state : INIT_STATE := INIT0;
+  -- type INIT_STATE is (
+  --     INIT0,
+  --     INIT1,
+  --     INIT2,
+  --     INIT3,
+  --     INIT4,
+  --     INIT5,
+  --     INIT6,
+  --     INIT7
+  -- );
+  --
+  -- signal lcd_init_state : INIT_STATE := INIT0;
 
   signal i2c_addr : std_logic_vector(7 downto 0);
   signal regBusy, sigBusy, reset_n, i2c_ena, i2c_rw, ack_err : std_logic;
@@ -90,19 +101,20 @@ architecture Behavioral of I2C_LCD_driver is
   signal byteSel : integer := 0;
   signal regData: std_logic_vector(15 downto 0);
   signal refresh : std_logic := '0';
-  signal previous_source : std_logic_vector(2 downto 0);
-  signal previous_generation : std_logic := '0';
+  signal reset_p : std_logic := not(I_RESET_N);
+  -- signal previous_source : std_logic_vector(2 downto 0);
+  -- signal previous_generation : std_logic := '0';
 
 begin
 
   inst_master : i2c_master
   generic map(
-    input_clk => 50_000_000, -- TODO need to change this for Cora Z7-10
+    input_clk => 125_000_000, -- TODO need to change this for Cora Z7-10
     bus_clk   => 100_000
   )
   port map(
-  	clk => I_CLK_50MHZ,
-  	reset_n => I_RESET_N,
+  	clk => I_CLK_125MHZ,
+  	reset_n => reset_p,
   	ena => i2c_ena,
   	addr => i2c_addr(6 downto 0),
   	rw => i2c_rw,
@@ -114,23 +126,50 @@ begin
   	scl => SCL
   );
 
-  REFRESH_DISPLAY : process(I_RESET_N, I_CLK_50MHZ)
+  ILA : ila_0
+  port map(
+    clk => I_CLK_125MHZ,
+    probe0 => std_logic_vector(Cont),
+    probe1 => data_wr,
+    probe2 => i2c_ena,
+    probe3 => std_logic_vector(to_unsigned(byteSeL, 21))
+  );
+
+  COMMAND_COUNT : process(I_CLK_125MHZ)
   begin
-    if (I_RESET_N = '0') then
-      refresh <= '0';
-    elsif (rising_edge(I_CLK_50MHZ)) then
-      previous_source <= source;
-      previous_generation <= Generation;
-      if (previous_source /= source or previous_generation /= Generation) then
-        refresh <= '1';
+    if (I_RESET_N = '1') then
+      byteSeL <= 0;
+      Cont <=  X"2EB13";
+    elsif (rising_edge(I_CLK_125MHZ)) then
+      Cont <= Cont - 1;
+      if (Cont = X"00000") then
+        if (state = write_data and byteSeL < 14) then
+          byteSeL <= byteSeL + 1;
+        -- else
+        --   byteSeL <= 12;
+        end if;
+        Cont <= X"2ED13";
       end if;
-      refresh <= '0';
     end if;
   end process;
 
-  -- INIT_COUNTER : process(I_CLK_50MHZ, I_RESET_N)
+  -- REFRESH_DISPLAY : process(I_RESET_N, I_CLK_125MHZ)
+  -- begin
+  --   if (I_RESET_N = '1') then
+  --     refresh <= '0';
+  --   elsif (rising_edge(I_CLK_125MHZ)) then
+  --     previous_source <= source;
+  --     previous_generation <= Generation;
+  --     if (previous_source /= source or previous_generation /= Generation) then
+  --       refresh <= '1';
+  --     end if;
+  --     refresh <= '0';
+  --   end if;
+  -- end process;
+
+  -- INIT_COUNTER : process(I_CLK_125MHZ, I_RESET_N)
   --   begin
-  --     if (rising_edge(I_CLK_50MHZ)) then
+  --     if (rising_edge(I_CLK_125MHZ)) then
   --       if (lcd_initialized = '0') then
   --         sixteen_ms_count        <= sixteen_ms_count + 1;
   --         forty_four_micro_elapse <= '0';
@@ -163,17 +202,17 @@ begin
   --     end if;
   -- end process INIT_COUNTER;
 
-  -- DIGIT_STATE : process(I_CLK_50MHZ, I_RESET_N)
+  -- DIGIT_STATE : process(I_CLK_125MHZ, I_RESET_N)
   --   begin
-  --     -- if (I_RESET_N = '0') then
+  --     -- if (I_RESET_N = '1') then
   --     --   current_digit <= DIGIT0;
-  --     -- elsif (rising_edge(I_CLK_50MHZ)) then
-  --     if (rising_edge(I_CLK_50MHZ)) then
+  --     -- elsif (rising_edge(I_CLK_125MHZ)) then
+  --     if (rising_edge(I_CLK_125MHZ)) then
   --       if (lcd_initialized = '1' and DATA_CHANGE = '1') then
   --         current_digit <= DIGIT0;
   --       end if;
   --
-  --       if (I_RESET_N = '0' and previous_reset = '1') then
+  --       if (I_RESET_N = '1' and previous_reset = '1') then
   --         current_digit <= DIGIT0;
   --       end if;
   --
@@ -255,39 +294,58 @@ begin
   --     end if;
   -- end process DIGIT_STATE;
 
-  process(I_CLK_50MHZ)
+  SET_EN : process(I_CLK_125MHZ)
   begin
-  if(rising_edge(I_CLK_50MHZ)) then
+    if (rising_edge(I_CLK_125MHZ)) then
+      if (I_RESET_N = '1') then
+        i2c_ena <= '0';
+      end if;
+
+      case( state ) is
+        when start =>
+          i2c_ena <= '0';
+        when write_data =>
+          i2c_ena <= '1';
+        when repeat =>
+          i2c_ena <= '0';
+      end case;
+    end if;
+  end process;
+
+  process(I_CLK_125MHZ)
+  begin
+  if(rising_edge(I_CLK_125MHZ)) then
   	regBusy <= sigBusy;
   	case state is
   		when start =>
+        -- Cont <= Cont - 1;
   			if Cont /= X"00000" then
-  				Cont <= Cont -1;
+  				-- Cont <= Cont -1;
   				reset_n <= '0';
   				state <= start;
-  				i2c_ena <= '0';
+  				-- i2c_ena <= '0';
   			else
   				reset_n <= '1';
-  				i2c_ena <= '1';
-  				i2c_addr <= X"27"; -- TODO may need to change this
+  				-- i2c_ena <= '1';
+  				i2c_addr <= X"27";
   				i2c_rw <= '0';
   				state <= write_data;
   			end if;
   		when write_data =>
-  		if regBusy/=sigBusy and sigBusy='0' then
-  			if byteSel /= 11 then
-  				byteSel <= byteSel + 1;
+  		-- if regBusy/=sigBusy and sigBusy='0' then
+  			if byteSel /= 13 then
+  				-- byteSel <= byteSel + 1;
   				state <= write_data;
   			else
-  				byteSel <= 0;
-  				i2c_ena <= '0';
+  				-- byteSel <= 0;
+  				-- i2c_ena <= '0';
   				state <= repeat;
   			end if;
-  		end if;
+  		-- end if;
   		when repeat => -- wait for new data
-  			i2c_ena <= '0';
+  			-- i2c_ena <= '0';
   			-- if refresh = '1' then
-  				Cont <= X"09FFE";
+  				-- Cont <= X"2EB13";
   				state <= start;
   			-- else
   				-- state <= repeat;
@@ -301,39 +359,42 @@ begin
   	case byteSel is
       -----------------------begin initialization sequence----------------------
   		when 0 =>
-        data_wr <= X"34";
+        data_wr <= X"3C";
   		when 1 =>
-        data_wr <= X"34";
+        data_wr <= X"3C";
   		when 2 =>
-        data_wr <= X"34";
+        data_wr <= X"3C";
   		when 3 =>
-        data_wr <= X"24";
+        data_wr <= X"2C";
   		when 4 =>
-        data_wr <= X"24";
+        data_wr <= X"2C";
   		when 5 =>
-        data_wr <= X"C4";
+        data_wr <= X"CC";
   		when 6 =>
-        data_wr <= X"04";
+        data_wr <= X"0C";
   		when 7 =>
-        data_wr <= X"84";
+        data_wr <= X"8C";
   		when 8 =>
-        data_wr <= X"04";
+        data_wr <= X"0C";
   		when 9 =>
-        data_wr <= X"14";
+        data_wr <= X"1C";
   		when 10 =>
-        data_wr <= X"04";
+        data_wr <= X"0C";
   		when 11 =>
-        data_wr <= X"34";
+        data_wr <= X"3C";
       ---------------------------end initialization-----------------------------
-      -- when 12 =>
-      --   if (source = "00") then
-      --
-      --   elsif (source = "01") then
-      --   elsif (source = "10") then
-      --
-      --   end if;
-      -- when 13 =>
-      --   data_wr <= x"";
+
+      ------------------------Begin lcd data write------------------------------
+      when 12 =>
+        data_wr <= X"5D";  -- T upper 4 bits
+        -- if (source = "00") then
+        --
+        -- elsif (source = "01") then
+        -- elsif (source = "10") then
+        --
+        -- end if;
+      when 13 =>
+        data_wr <= X"4D"; -- T lower 4 bits
       -- when 14 =>
       --   data_wr <= x"";
       -- when 15 =>
@@ -348,6 +409,7 @@ begin
       --   data_wr <= x"";
       -- when 20 =>
       --   data_wr <= x"";
+      ---------------------------End lcd data write-----------------------------
   		when others =>
       -- data_wr <= X"76";
   	end case;
