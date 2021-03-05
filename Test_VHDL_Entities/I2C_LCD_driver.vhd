@@ -256,14 +256,14 @@ begin
   --     prevBusy <= sigBusy;
   --   	case state is
   --   		when start =>
-  --           if (byteSel < 43) then
+  --           if (byteSel < 49) then
   --             i2c_ena <= '1';
   --           else
   --             i2c_ena <= '0';
   --           end if;
   --   				state <= write_data;
   --   		when write_data =>
-  --         if byteSel < 43 then
+  --         if byteSel < 49 then
   --
   --           if (Cont < X"02EB13") then  -- wait for 1.53ms
   --             i2c_ena <= '0';
@@ -296,7 +296,7 @@ begin
       prevBusy <= sigBusy;
     	case state is
     		when start =>
-          if (byteSel < 43) then
+          if (byteSel < 73) then
             if (prevBusy = '1' and sigBusy = '0') then
               i2c_ena <= '0';
               state <= write_data;
@@ -306,7 +306,7 @@ begin
           end if;
 
     		when write_data =>
-          if byteSel < 43 then
+          if byteSel < 73 then
             if (Cont = X"07D1F5") then  -- wait for 1.53ms
               byteSel <= byteSel + 1;
               state <= start;
@@ -593,17 +593,90 @@ begin
         when 36 =>
           data_wr <= X"38";
         when 37 =>
-          data_wr <= X"59";
+          data_wr <= x"08";
         when 38 =>
-          data_wr <= X"5D";
+          data_wr <= x"0C";
         when 39 =>
-          data_wr <= X"59";
+          data_wr <= x"08";
         when 40 =>
-          data_wr <= X"49";
+          data_wr <= x"F8";
         when 41 =>
-          data_wr <= X"4D";
+          data_wr <= x"FC";
         when 42 =>
+          data_wr <= x"F8";
+        -- when 43 =>
+        --   data_wr <= X"59";
+        -- when 44 =>
+        --   data_wr <= X"5D";
+        -- when 45 =>
+        --   data_wr <= X"59";
+        -- when 46 =>
+        --   data_wr <= X"49";
+        -- when 47 =>
+        --   data_wr <= X"4D";
+        -- when 48 =>
+        --   data_wr <= X"49";
+        when 43 =>
           data_wr <= X"49";
+        when 44 =>
+          data_wr <= X"4D";
+        when 45 =>
+          data_wr <= X"49";
+        when 46 =>
+          data_wr <= X"A9";
+        when 47 =>
+          data_wr <= X"AD";
+        when 48 =>
+          data_wr <= X"A9";
+        when 49 =>
+          data_wr <= X"59";
+        when 50 =>
+          data_wr <= X"5D";
+        when 51 =>
+          data_wr <= X"59";
+        when 52 =>
+          data_wr <= X"59";
+        when 53 =>
+          data_wr <= X"5D";
+        when 54 =>
+          data_wr <= X"59";
+        when 55 =>
+          data_wr <= X"49";
+        when 56 =>
+          data_wr <= X"4D";
+        when 57 =>
+          data_wr <= X"49";
+        when 58 =>
+          data_wr <= X"E9";
+        when 59 =>
+          data_wr <= X"ED";
+        when 60 =>
+          data_wr <= X"E9";
+        when 61 =>
+          data_wr <= X"49";
+        when 62 =>
+          data_wr <= X"4D";
+        when 63 =>
+          data_wr <= X"49";
+        when 64 =>
+          data_wr <= X"B9";
+        when 65 =>
+          data_wr <= X"BD";
+        when 66 =>
+          data_wr <= X"B9";
+        when 67 =>
+          data_wr <= X"29";
+        when 68 =>
+          data_wr <= X"2D";
+        when 69 =>
+          data_wr <= X"29";
+        when 70 =>
+          data_wr <= X"19";
+        when 71 =>
+          data_wr <= X"1D";
+        when 72 =>
+          data_wr <= X"19";
+
         when others =>
           -- DO NOTHING
       end case;
