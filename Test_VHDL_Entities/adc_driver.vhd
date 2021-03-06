@@ -40,8 +40,8 @@ entity adc_driver is
            adc_rst      : in std_logic;     --reset
            adc_en       : in std_logic;     --enables the adc
            adc_source   : in std_logic_vector(1 downto 0); -- 00 for LDR, 01 for TEMP, 10 for OP, 11 for POT
-           adc_sda          : inout std_logic;  --the i2c data
-           adc_scl          : inout std_logic;  --the i2c clock
+           adc_sda      : inout std_logic;  --the i2c data
+           adc_scl      : inout std_logic;  --the i2c clock
            adc_data_out : out std_logic_vector(7 downto 0) --the digitized data
           -- adc_busy         : out std_logic  --for comminicating with i2c --probably not needed
     );
@@ -61,8 +61,8 @@ type state_type is  (init, standby, sample, instruct);
 signal state : state_type := init;
 signal m_ena, m_rw, m_busy, m_ack_error : std_logic;
 signal analog_in : std_logic_vector(7 downto 0); --The data sampled
-signal instructions : std_logic_vector(7 downto 0); --The data for instructions
-signal adc_addr  : std_logic_vector(6 downto 0); --used to control channel selected
+signal instructions : std_logic_vector(7 downto 0) := "000000" & adc_source; --The data for channel selection instructions
+signal adc_addr  : std_logic_vector(7 downto 0) := "1001000"; --used to select this device
 
 ----------------
 ---Components---
@@ -104,11 +104,11 @@ inst_i2c : i2c_master
     clk       =>    adc_clk,                    --system clock
     reset_n   =>    adc_rst,                    --active low reset
     ena       =>    m_ena,                      --latch in command
-    addr      =>    adc_addr,                   --address of target slave
+    addr      =>    adc_addr(6 downto 0),       --address of target slave
     rw        =>    m_rw,                       --'0' is write, '1' is read
-    data_wr   =>    instructions,                   --data to write to slave
+    data_wr   =>    instructions,               --data to write to slave
     busy      =>    m_busy,                     --indicates transaction in progress
-    data_rd   =>    analog_in,               --data read from slave--look at making a new signal for this sine out data cant be assigned
+    data_rd   =>    analog_in,                  --data read from slave--look at making a new signal for this sine out data cant be assigned
     ack_error =>    m_ack_error,                --flag if improper acknowledge from slave
     sda       =>    adc_sda,                    --serial data output of i2c bus
     scl       =>    adc_scl);                   --serial clock output of i2c bus
@@ -132,19 +132,19 @@ process(adc_clk, adc_rst)
            case state is
                 when init => state <= standby;  --resets and starts up the system
                              
-                when standby =>     if(adc_addr(7 downto 4) = "1001") then              --Waits until slave is signaled for
-                                        state <= instruct;
+                when standby =>     if(m_busy = '1') then                               --Waits until slave is signaled for
+                                        state <= standby;
                                     else 
-                                        state <= standby;                               --Waits to be called on
+                                        state <= instruct;                               --Goes to instruction mode when not busy
                                     end if;
                                 
-                when sample =>      if(instructions(1 downto 0) = adc_source) then      --only samples when instructed to
+                when sample =>      if(instructions(1 downto 0) = adc_source) then      --will sample as long as the channel is selected for
                                         state <= sample;
                                     else
-                                        state <= standby;                               --Goes back to stand by mode when done
+                                        state <= standby;                               --Goes back to standby mode when channel is changed
                                     end if;
                                
-                when instruct =>    if(m_busy = '1') then                               --only samples when engaged with the master
+                when instruct =>    if(m_busy'event and m_busy = '1') then              --only samples when engaged with the master
                                         state <= sample;
                                     else
                                         state <= instruct;                              --Waits for instructions
@@ -153,48 +153,42 @@ process(adc_clk, adc_rst)
             end case;
        end if;
     end if;
-
+       
 end process;
-
+       
 ---------------------
 ---State Behaviour---
 ---------------------
-
-process(adc_clk, adc_rst)
+       
+process(adc_clk, adc_rst, adc_en)
   begin
-
-    if(adc_rst = '0') then              --asynchronous reset
-        adc_addr <= "0000000";
-        m_ena    <= '0';   
-    else
-        if(rising_edge(adc_clk)) then 
-        
-                if(state = init) then
-                    adc_addr <= "1001000";
-                    m_ena <= '1';
-                    analog_in <= "00000000";
-                    m_busy <= '0';   
+       
+    if(rising_edge(adc_clk)) then 
+    
+       if(state = init) then
+          m_ena <= '0';
+          analog_in <= "00000000";
+          m_busy <= '1'; 
+          m_rw <= '1';  
                              
-                elsif(state = standby) then 
-                    adc_addr <= "10000" & adc_source;
-                                m_busy <= '0';
-                                if(1 = 1) then --Change this if statement to appropriate thing
-
-                                else 
-      
-                                end if;
+       elsif(state = standby) then 
+          m_ena <= '0';
+          m_busy <= '0';
                                 
-                elsif(state = sample) then
-                    analog_in <= "00000000"; -- some random value for right now
-                    m_busy <= '1';
+       elsif(state = sample) then
+          m_rw <= '1';  --changes to read mode
+          adc_data_out <= analog_in;   --outputs the digitized analog signal
                                
-                elsif(state = instruct) then
-                     adc_addr <= "10010001";
-                             m_busy <= '1';
-                             adc_data_out <= analog_in;
-                end if;
-                          
-       end if;
+       elsif(state = instruct) then
+          m_ena <= '1'; --enables the I2C connection
+          m_rw <= '0';  --changes to write mode
+          instructions <= "000000" and adc_source;  --updates the instructions with the channel source
+          m_busy <= '1';      
+       
+       else 
+          state <= standby; --Just incase something weird happens, it'll stay in standby mode
+          
+       end if;         
     end if;
 end process;
 
