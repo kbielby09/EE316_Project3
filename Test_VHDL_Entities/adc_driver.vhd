@@ -38,7 +38,7 @@ use IEEE.STD_LOGIC_1164.ALL;
 entity adc_driver is
     Port ( adc_clk      : in std_logic;     --clock
            adc_rst      : in std_logic;     --reset
-           --adc_en       : in std_logic;     --enables the adc
+           adc_en       : in std_logic;     --enables the adc
            adc_source   : in std_logic_vector(1 downto 0); -- 00 for LDR, 01 for TEMP, 10 for OP, 11 for POT
            adc_sda          : inout std_logic;  --the i2c data
            adc_scl          : inout std_logic;  --the i2c clock
@@ -57,11 +57,12 @@ architecture Behavioral of adc_driver is
 ---Signals---
 -------------
 
-type state_type is  (init, standby, sample, read);
+type state_type is  (init, standby, sample, instruct);
 signal state : state_type := init;
 signal m_ena, m_rw, m_busy, m_ack_error : std_logic;
-signal to_store : std_logic_vector(7 downto 0);
-signal adc_addr  : std_logic_vector(6 downto 0);
+signal analog_in : std_logic_vector(7 downto 0); --The data sampled
+signal instructions : std_logic_vector(7 downto 0); --The data for instructions
+signal adc_addr  : std_logic_vector(6 downto 0); --used to control channel selected
 
 ----------------
 ---Components---
@@ -70,7 +71,7 @@ signal adc_addr  : std_logic_vector(6 downto 0);
 component i2c_master is
   GENERIC(
     input_clk : INTEGER := 50_000_000; --input clock speed from user logic in Hz
-    bus_clk   : INTEGER := 100_000);   --speed the i2c bus (scl) will run at in Hz
+    bus_clk   : INTEGER := 400_000);   --speed the i2c bus (scl) will run at in Hz
   PORT(
     clk       : IN     STD_LOGIC;                    --system clock
     reset_n   : IN     STD_LOGIC;                    --active low reset
@@ -105,9 +106,9 @@ inst_i2c : i2c_master
     ena       =>    m_ena,                      --latch in command
     addr      =>    adc_addr,                   --address of target slave
     rw        =>    m_rw,                       --'0' is write, '1' is read
-    data_wr   =>    to_store,                   --data to write to slave
+    data_wr   =>    instructions,                   --data to write to slave
     busy      =>    m_busy,                     --indicates transaction in progress
-    data_rd   =>    adc_data_out,               --data read from slave--look at making a new signal for this sine out data cant be assigned
+    data_rd   =>    analog_in,               --data read from slave--look at making a new signal for this sine out data cant be assigned
     ack_error =>    m_ack_error,                --flag if improper acknowledge from slave
     sda       =>    adc_sda,                    --serial data output of i2c bus
     scl       =>    adc_scl);                   --serial clock output of i2c bus
@@ -123,42 +124,78 @@ inst_i2c : i2c_master
 process(adc_clk, adc_rst)
   begin
 
+    if(adc_rst = '0' or adc_en = '0') then              --asynchronous reset
+        state <= init;
+    else
+        if(rising_edge(adc_clk)) then 
+           
+           case state is
+                when init => state <= standby;  --resets and starts up the system
+                             
+                when standby =>     if(adc_addr(7 downto 4) = "1001") then              --Waits until slave is signaled for
+                                        state <= instruct;
+                                    else 
+                                        state <= standby;                               --Waits to be called on
+                                    end if;
+                                
+                when sample =>      if(instructions(1 downto 0) = adc_source) then      --only samples when instructed to
+                                        state <= sample;
+                                    else
+                                        state <= standby;                               --Goes back to stand by mode when done
+                                    end if;
+                               
+                when instruct =>    if(m_busy = '1') then                               --only samples when engaged with the master
+                                        state <= sample;
+                                    else
+                                        state <= instruct;                              --Waits for instructions
+                                    end if;
+                                        
+            end case;
+       end if;
+    end if;
+
+end process;
+
+---------------------
+---State Behaviour---
+---------------------
+
+process(adc_clk, adc_rst)
+  begin
+
     if(adc_rst = '0') then              --asynchronous reset
         adc_addr <= "0000000";
         m_ena    <= '0';   
     else
         if(rising_edge(adc_clk)) then 
-           
-           case state is
-                when init => adc_addr <= "1001000";
-                             m_ena <= '1';
-                             to_store <= "00000000";
-                             m_busy <= '0';   
-                             state <= standby;
+        
+                if(state = init) then
+                    adc_addr <= "1001000";
+                    m_ena <= '1';
+                    analog_in <= "00000000";
+                    m_busy <= '0';   
                              
-                when standby => adc_addr <= "10000" & adc_source;
+                elsif(state = standby) then 
+                    adc_addr <= "10000" & adc_source;
                                 m_busy <= '0';
-                                if() then
-                                    state <= sample;
+                                if(1 = 1) then --Change this if statement to appropriate thing
+
                                 else 
-                                    state <= standby;
+      
                                 end if;
                                 
-                when sample => to_store <= "00000000"; -- some random value for right now
-                               m_busy <= '1';
-                               state <= standby;
+                elsif(state = sample) then
+                    analog_in <= "00000000"; -- some random value for right now
+                    m_busy <= '1';
                                
-                when read => adc_addr <= "10010001";
+                elsif(state = instruct) then
+                     adc_addr <= "10010001";
                              m_busy <= '1';
-                             adc_data_out <= to_store;
-                             state <= standby;
-                             
-            end case;
+                             adc_data_out <= analog_in;
+                end if;
+                          
        end if;
     end if;
-
---Do I need a counter here? Why?
-
 end process;
 
 end Behavioral;
