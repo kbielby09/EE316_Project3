@@ -37,43 +37,32 @@ entity I2C_LCD_driver is
    I_CLK_125MHZ : in std_logic;
 
    SDA : inout std_logic;
-   SCL : inout std_logic
+   SCL : inout std_logic;
 
    -- Data
-   -- Generation : in std_logic;
-   -- source : in std_logic_vector(2 downto 0)
+   Generation : in std_logic := '1';
+   source : in std_logic_vector(1 downto 0) := "00"
 );
 end I2C_LCD_driver;
 
 architecture Behavioral of I2C_LCD_driver is
 
-  -- component ila_0 is
-  --   port(
-  --   clk : in std_logic;
-  --   probe0 : in std_logic_vector(19 downto 0);
-  --   probe1 : in std_logic_vector(7 downto 0);
-  --   probe2 : in std_logic;
-  --   probe3 : in std_logic_vector(20 downto 0)
-  --   );
-  --
-  -- end component;
-
   component i2c_master is
   GENERIC(
-      input_clk : INTEGER := 125_000_000; --input clock speed from user logic in Hz
-      bus_clk   : INTEGER := 100_000);   --speed the i2c bus (scl) will run at in Hz
+      input_clk : INTEGER := 125_000_000;
+      bus_clk   : INTEGER := 100_000);
     PORT(
-      clk       : IN     STD_LOGIC;                    --system clock
-      reset_n   : IN     STD_LOGIC;                    --active low reset
-      ena       : IN     STD_LOGIC;                    --latch in command
-      addr      : IN     STD_LOGIC_VECTOR(6 DOWNTO 0); --address of target slave
-      rw        : IN     STD_LOGIC;                    --'0' is write, '1' is read
-      data_wr   : IN     STD_LOGIC_VECTOR(7 DOWNTO 0); --data to write to slave
-      busy      : OUT    STD_LOGIC;                    --indicates transaction in progress
-      data_rd   : OUT    STD_LOGIC_VECTOR(7 DOWNTO 0); --data read from slave
-      ack_error : BUFFER STD_LOGIC;                    --flag if improper acknowledge from slave
-      sda       : INOUT  STD_LOGIC;                    --serial data output of i2c bus
-      scl       : INOUT  STD_LOGIC);                   --serial clock output of i2c bus
+      clk       : IN     STD_LOGIC;
+      reset_n   : IN     STD_LOGIC;
+      ena       : IN     STD_LOGIC;
+      addr      : IN     STD_LOGIC_VECTOR(6 DOWNTO 0);
+      rw        : IN     STD_LOGIC;
+      data_wr   : IN     STD_LOGIC_VECTOR(7 DOWNTO 0);
+      busy      : OUT    STD_LOGIC;
+      data_rd   : OUT    STD_LOGIC_VECTOR(7 DOWNTO 0);
+      ack_error : BUFFER STD_LOGIC;
+      sda       : INOUT  STD_LOGIC;
+      scl       : INOUT  STD_LOGIC);
   END component i2c_master;
 
   signal Cont 		: unsigned(23 downto 0) := (others => '0'); --X"1C9C38"; --X"02EB13";
@@ -105,19 +94,18 @@ architecture Behavioral of I2C_LCD_driver is
   signal prevBusy, sigBusy, reset_n, i2c_ena, ack_err : std_logic;
   signal data_wr: std_logic_vector(7 downto 0);
   signal byteSel : integer := 1;
-  signal regData: std_logic_vector(15 downto 0);
-  signal refresh : std_logic := '0';
   signal reset_p : std_logic := not(I_RESET_N);
   signal initial_wait_done : std_logic := '0';
   signal lcd_initialized : std_logic := '0';
-  -- signal previous_source : std_logic_vector(2 downto 0);
-  -- signal previous_generation : std_logic := '0';
+  signal previous_source : std_logic_vector(2 downto 0);
+  signal previous_generation : std_logic := '0';
+  signal active_byte : std_logic_vector(3 downto 0);
 
 begin
 
   inst_master : i2c_master
   generic map(
-    input_clk => 125_000_000, -- TODO need to change this for Cora Z7-10
+    input_clk => 125_000_000,
     bus_clk   => 100_000
   )
   port map(
@@ -134,21 +122,11 @@ begin
   	scl => SCL
   );
 
-  -- ILA : ila_0
-  -- port map(
-  --   clk => I_CLK_125MHZ,
-  --   probe0 => std_logic_vector(Cont(19 downto 0)),
-  --   probe1 => data_wr,
-  --   probe2 => i2c_ena,
-  --   probe3 => std_logic_vector(to_unsigned(byteSeL, 21))
-  -- );
-
 
   COMMAND_COUNT : process(I_CLK_125MHZ)
   begin
     if (I_RESET_N = '1') then
-      -- byteSeL <= 0;
-      -- Cont <=  X"000000";
+      Cont <=  X"000000";
     elsif (rising_edge(I_CLK_125MHZ)) then
       if (initial_wait_done = '0') then
         if (Cont < X"1C9C38") then
@@ -156,35 +134,20 @@ begin
         else
           Cont <= (others => '0');
         end if;
-
       elsif (state = write_data) then
-
         if (Cont < X"07D1F5") then
           Cont <= Cont + 1;
         else
           Cont <= (others => '0');
         end if;
       end if;
-
-      -- if (Cont = X"02EB13" and lcd_initialized = '1') then
-        -- if (state = write_data and byteSeL < 12) then
-        --   byteSeL <= byteSeL + 1;
-        -- elsif (state = write_data and byteSeL > 12 and byteSeL < 14) then
-        --   if (prevBusy/=sigBusy and sigBusy='0') then
-        --     byteSeL <= byteSeL + 1;
-        --   end if;
-        -- -- else
-        -- --   byteSeL <= 12;
-        -- end if;
-        -- Cont <= X"000000";
-      -- end if;
     end if;
   end process;
 
   FIRST_WAIT : process(I_RESET_N, I_CLK_125MHZ)
   begin
     if (I_RESET_N = '1') then
-      -- initial_wait_done <= '0';
+      initial_wait_done <= '0';
     elsif (rising_edge(I_CLK_125MHZ)) then
       if (initial_wait_done = '0' and Cont = X"1C9C38") then
         initial_wait_done <= '1';
@@ -192,111 +155,22 @@ begin
     end if;
   end process;
 
-  -- I2C_STATE : process(I_CLK_125MHZ, I_RESET_N)
-  -- begin
-  --   if (I_RESET_N = '1') then
-  --     state <= start;
-  --   elsif (rising_edge(I_CLK_125MHZ)) then
-  --     case(state) is
-  --       when start =>
-  --         if (sigBusy = '0') then
-  --           state <= write_data;
-  --         end if;
-  --       when write_data =>
-  --         -- if (sigBusy = '1') then
-  --         --   state <= repeat;
-  --         -- end if;
-  --         if (byteSel < 37) then
-  --           state <= repeat;
-  --         end if;
-  --       when repeat =>
-  --         -- if ((Cont = X"02EB13" or Cont = X"00001D")
-  --         --   and lcd_init_state /= INIT0
-  --         --   and lcd_init_state /= INIT2
-  --         --   and lcd_init_state /= INIT4) then
-  --         if (initial_wait_done = '1') then
-  --           state <= start;
-  --         end if;
-  --     end case;
-  --   end if;
-  -- end process I2C_STATE;
-
-
-  -- I2C_SIG_SET : process(I_CLK_125MHZ, I_RESET_N)
-  -- begin
-  --   if (I_RESET_N = '1') then
-  --     i2c_ena <= '0';
-  --   elsif (rising_edge(I_CLK_125MHZ)) then
-  --
-  --     if (initial_wait_done = '1') then
-  --       case( state ) is
-  --         when start =>
-  --           if (sigBusy = '0') then
-  --             if (byteSel < 37) then -- TODO remove after test
-  --               i2c_ena <= '1'; -- set enable to 1
-  --               byteSel <= byteSel + 1;
-  --             end if;
-  --
-  --           end if;
-  --         when write_data =>
-  --           if (sigBusy = '1') then
-  --             i2c_ena <= '0';
-  --           end if;
-  --         when repeat =>
-  --           -- no signals to control in this state
-  --       end case;
-  --     end if;
-  --   end if;
-  -- end process;
-
-  -- process(I_CLK_125MHZ)
-  -- begin
-  -- if(rising_edge(I_CLK_125MHZ)) then
-  --   if (initial_wait_done = '1') then
-  --     prevBusy <= sigBusy;
-  --   	case state is
-  --   		when start =>
-  --           if (byteSel < 49) then
-  --             i2c_ena <= '1';
-  --           else
-  --             i2c_ena <= '0';
-  --           end if;
-  --   				state <= write_data;
-  --   		when write_data =>
-  --         if byteSel < 49 then
-  --
-  --           if (Cont < X"02EB13") then  -- wait for 1.53ms
-  --             i2c_ena <= '0';
-  --             state <= write_data;
-  --           else
-  --             if prevBusy = '1' and sigBusy = '0' then
-  --               byteSel <= byteSel + 1;
-  --             end if;
-  --             i2c_ena <= '1';
-  --             state <= write_data;
-  --           end if;
-  --         else
-  --           i2c_ena <= '0';
-  --           state <= repeat;
-  --         end if;
-  --
-  --   		when repeat => -- wait for new data
-  --   			i2c_ena <= '0';
-  --   				state <= start;
-  --   		end case;
-  --   end if;
-  -- end if;
-  -- end process;
-
-
   process(I_CLK_125MHZ)
   begin
   if(rising_edge(I_CLK_125MHZ)) then
     if (initial_wait_done = '1') then
       prevBusy <= sigBusy;
+      previous_generation <= Generation;
+      previous_source <= source;
+
+      if (previous_generation /= Generation
+          or previous_source /= source) then
+        byteSel <= 1;
+      end if;
+
     	case state is
     		when start =>
-          if (byteSel < 73) then
+          if (byteSel < 163) then
             if (prevBusy = '1' and sigBusy = '0') then
               i2c_ena <= '0';
               state <= write_data;
@@ -306,7 +180,7 @@ begin
           end if;
 
     		when write_data =>
-          if byteSel < 73 then
+          if (byteSel < 163) then
             if (Cont = X"07D1F5") then  -- wait for 1.53ms
               byteSel <= byteSel + 1;
               state <= start;
@@ -320,362 +194,220 @@ begin
   end if;
   end process;
 
-  -- INTI_STATE : process(I_CLK_125MHZ, I_RESET_N)
-  -- begin
-  --   if (I_RESET_N = '1') then
-  --     lcd_init_state <= INIT0;
-  --   elsif (rising_edge(I_CLK_125MHZ)) then
-  --     case( lcd_init_state ) is
-  --       when INIT0 =>
-  --         if (initial_wait_done = '1') then
-  --           lcd_init_state <= INIT1;
-  --         end if;
-  --       when INIT1 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT2;
-  --         end if;
-  --       when INIT2 =>
-  --         if (Cont = X"07D1F4") then
-  --           lcd_init_state <= INIT3;
-  --         end if;
-  --       when INIT3 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT4;
-  --         end if;
-  --       when INIT4 =>
-  --         if (Cont = X"0030D4") then
-  --           lcd_init_state <= INIT5;
-  --         end if;
-  --       when INIT5 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT6;
-  --         end if;
-  --       when INIT6 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT7;
-  --         end if;
-  --       when INIT7 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT8;
-  --         end if;
-  --       when INIT8 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT9;
-  --         end if;
-  --       when INIT9 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT10;
-  --         end if;
-  --       when INIT10 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT11;
-  --         end if;
-  --       when INIT11 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT12;
-  --         end if;
-  --       when INIT12 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT13;
-  --         end if;
-  --       when INIT13 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_init_state <= INIT14;
-  --         end if;
-  --       when INIT14 =>
-  --         if (Cont = X"02EB13") then
-  --           lcd_initialized <= '1';
-  --         end if;
-  --       when others =>
-  --        -- DO NOTHING
-  --     end case;
-  --   end if;
-  --
-  -- end process;
+  WRTIE_BYTE : process(I_CLK_125MHZ, I_RESET_N)
+  begin
+    if (rising_edge(I_CLK_125MHZ)) then
+      if (byteSel mod 3 = 1) then
+        if (lcd_initialized = '0'
+          or byteSel = 61
+          or byteSel = 63
+          or byteSel = 64
+          or byteSel = 66) then
+          data_wr <= active_byte & X"8";
+        else
+          data_wr <= active_byte & X"9";
+        end if;
+      elsif (byteSel mod 3 = 2) then
+        if (lcd_initialized = '0'
+          or byteSel = 62
+          or byteSel = 65) then
+          data_wr <= active_byte & X"C";
+        else
+          data_wr <= active_byte & X"D";
+        end if;
+      elsif (byteSel mod 3 = 0) then
+        if (lcd_initialized = '0'
+          or byteSel = 61
+          or byteSel = 63
+          or byteSel = 64
+          or byteSel = 66) then
+          data_wr <= active_byte & X"8";
+        else
+          data_wr <= active_byte & X"9";
+        end if;
+      end if;
+    end if;
+  end process;
 
-  -- INIT_BYTES : process(I_CLK_125MHZ, I_RESET_N)
-  -- begin
-  --   if (I_RESET_N = '1') then
-  --    -- do stuff
-  --  elsif (rising_edge(I_CLK_125MHZ)) then
-  --     if (lcd_initialized = '0') then
-  --       case( lcd_init_state ) is
-  --         when INIT0 =>
-  --           -- wait for 15ms
-  --         when INIT1 =>
-  --           -- if (Cont < X"00001D") then
-  --           --   data_wr <= X"38";
-  --           -- else
-  --           --   data_wr <= X"3C";
-  --           -- end if;
-  --           if (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           elsif (Cont > X"1757B" and Cont < X"17598") then
-  --             data_wr <= X"3C";
-  --           elsif (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           end if;
-  --         when INIT2 =>
-  --           -- wait for 4.1ms
-  --         when INIT3 =>
-  --           if (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           elsif (Cont > X"1757B" and Cont < X"17598") then
-  --             data_wr <= X"3C";
-  --           elsif (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           end if;
-  --         when INIT4 =>
-  --           -- wait for 100 microsecs
-  --         when INIT5 =>
-  --           -- if (Cont < X"00001D") then
-  --           --   data_wr <= X"38";
-  --           -- else
-  --           --   data_wr <= X"3C";
-  --           -- end if;
-  --           if (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           elsif (Cont > X"1757B" and Cont < X"17598") then
-  --             data_wr <= X"3C";
-  --           elsif (Cont < X"01757B") then
-  --             data_wr <= X"38";
-  --           end if;
-  --         when INIT6 =>
-  --           -- if (Cont < X"00001D") then
-  --           --   data_wr <= X"28";
-  --           -- else
-  --           --   data_wr <= X"2C";
-  --           -- end if;
-  --           if (Cont < X"01757B") then
-  --             data_wr <= X"28";
-  --           elsif (Cont > X"1757B" and Cont < X"17598") then
-  --             data_wr <= X"2C";
-  --           elsif (Cont < X"01757B") then
-  --             data_wr <= X"28";
-  --           end if;
-  --         when INIT7 =>
-  --           -- if (Cont < X"00001D") then
-  --           --   data_wr <= X"28";
-  --           -- else
-  --           --   data_wr <= X"2C";
-  --           -- end if;
-  --           if (Cont < X"01757B") then
-  --             data_wr <= X"28";
-  --           elsif (Cont > X"1757B" and Cont < X"17598") then
-  --             data_wr <= X"2C";
-  --           elsif (Cont < X"01757B") then
-  --             data_wr <= X"28";
-  --           end if;
-  --         when INIT8 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"C8";
-  --           else
-  --             data_wr <= X"CC";
-  --           end if;
-  --         when INIT9 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"08";
-  --           else
-  --             data_wr <= X"0C";
-  --           end if;
-  --         when INIT10 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"88";
-  --           else
-  --             data_wr <= X"8C";
-  --           end if;
-  --         when INIT11 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"08";
-  --           else
-  --             data_wr <= X"0C";
-  --           end if;
-  --         when INIT12 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"18";
-  --           else
-  --             data_wr <= X"1C";
-  --           end if;
-  --         when INIT13 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"08";
-  --           else
-  --             data_wr <= X"0C";
-  --           end if;
-  --         when INIT14 =>
-  --           if (Cont < X"00001D") then
-  --             data_wr <= X"38";
-  --           else
-  --             data_wr <= X"3C";
-  --           end if;
-  --         when others =>
-  --           -- DO NOTHING
-  --       end case;
-  --     end if;
-  --   end if;
-  -- end process;
-
-  INIT_BYTE_COUNT : process(I_CLK_125MHZ, I_RESET_N)
+  SELECT_BYTE : process(I_CLK_125MHZ, I_RESET_N)
   begin
     if (I_RESET_N = '1') then
     elsif (rising_edge(I_CLK_125MHZ)) then
       case( byteSel ) is
         when 1 =>
-          data_wr <= X"38";
-        when 2 =>
-          data_wr <= X"3C";
-        when 3 =>
-          data_wr <= X"38";
+          active_byte <= X"3";
         when 4 =>
-          data_wr <= X"38";
-        when 5 =>
-          data_wr <= X"3C";
-        when 6 =>
-          data_wr <= X"38";
+          active_byte <= X"3";
         when 7 =>
-          data_wr <= X"38";
-        when 8 =>
-          data_wr <= X"3C";
-        when 9 =>
-          data_wr <= X"38";
+          active_byte <= X"3";
         when 10 =>
-          data_wr <= X"28";
-        when 11 =>
-          data_wr <= X"2C";
-        when 12 =>
-          data_wr <= X"28";
+          active_byte <= X"2";
         when 13 =>
-          data_wr <= X"28";
-        when 14 =>
-          data_wr <= X"2C";
-        when 15 =>
-          data_wr <= X"28";
+          active_byte <= X"2";
         when 16 =>
-          data_wr <= X"C8";
-        when 17 =>
-          data_wr <= X"CC";
-        when 18 =>
-          data_wr <= X"C8";
+          active_byte <= X"C";
         when 19 =>
-          data_wr <= X"08";
-        when 20 =>
-          data_wr <= X"0C";
-        when 21 =>
-          data_wr <= X"08";
+          active_byte <= X"0";
         when 22 =>
-          data_wr <= X"88";
-        when 23 =>
-          data_wr <= X"8C";
-        when 24 =>
-          data_wr <= X"88";
+          active_byte <= X"8";
         when 25 =>
-          data_wr <= X"08";
-        when 26 =>
-          data_wr <= X"0C";
-        when 27 =>
-          data_wr <= X"08";
+          active_byte <= X"0";
         when 28 =>
-          data_wr <= X"18";
-        when 29 =>
-          data_wr <= X"1C";
-        when 30 =>
-          data_wr <= X"18";
+          active_byte <= X"1";
         when 31 =>
-          data_wr <= X"08";
-        when 32 =>
-          data_wr <= X"0C";
-        when 33 =>
-          data_wr <= X"08";
+          active_byte <= X"0";
         when 34 =>
-          data_wr <= X"38";
-        when 35 =>
-          data_wr <= X"3C";
-        when 36 =>
-          data_wr <= X"38";
+          active_byte <= X"3";
         when 37 =>
-          data_wr <= x"08";
-        when 38 =>
-          data_wr <= x"0C";
-        when 39 =>
-          data_wr <= x"08";
+          active_byte <= X"0";
         when 40 =>
-          data_wr <= x"F8";
-        when 41 =>
-          data_wr <= x"FC";
+          active_byte <= x"F";
         when 42 =>
-          data_wr <= x"F8";
-        -- when 43 =>
-        --   data_wr <= X"59";
-        -- when 44 =>
-        --   data_wr <= X"5D";
-        -- when 45 =>
-        --   data_wr <= X"59";
-        -- when 46 =>
-        --   data_wr <= X"49";
-        -- when 47 =>
-        --   data_wr <= X"4D";
-        -- when 48 =>
-        --   data_wr <= X"49";
+          lcd_initialized <= '1';
         when 43 =>
-          data_wr <= X"49";
-        when 44 =>
-          data_wr <= X"4D";
-        when 45 =>
-          data_wr <= X"49";
+          if (source = "00") then
+            active_byte <= X"4";  -- L upper nibble
+          elsif (source = "01") then
+            active_byte <= X"5";  -- T upper nibble
+          elsif (source = "10") then
+            active_byte <= X"4";  -- A upper nibble
+          elsif (source ="11") then
+            active_byte <= X"5";  -- P upper nibble
+          end if;
         when 46 =>
-          data_wr <= X"A9";
-        when 47 =>
-          data_wr <= X"AD";
-        when 48 =>
-          data_wr <= X"A9";
+          if (source = "00") then
+            active_byte <= X"C"; -- L lower nibble
+          elsif (source = "01") then
+            active_byte <= X"4"; -- T lower nibble
+          elsif (source = "10") then
+            active_byte <= X"1"; -- A lower nibble
+          elsif (source ="11") then
+            active_byte <= X"0"; -- P lower nibble
+          end if;
         when 49 =>
-          data_wr <= X"59";
-        when 50 =>
-          data_wr <= X"5D";
-        when 51 =>
-          data_wr <= X"59";
+          if (source = "00") then
+            active_byte <= X"4";  -- D upper nibble
+          elsif (source = "01") then
+            active_byte <= X"4";  -- M upper nibble
+          elsif (source = "10") then
+            active_byte <= X"4";  -- N upper nibble
+          elsif (source ="11") then
+            active_byte <= X"4";  -- O upper nibble
+          end if;
         when 52 =>
-          data_wr <= X"59";
-        when 53 =>
-          data_wr <= X"5D";
-        when 54 =>
-          data_wr <= X"59";
+          if (source = "00") then
+            active_byte <= X"4";  -- D lower nibble
+          elsif (source = "01") then
+            active_byte <= X"D";  -- M lower nibble
+          elsif (source = "10") then
+            active_byte <= X"E";  -- N lower nibble
+          elsif (source ="11") then
+            active_byte <= X"F";  -- O lower nibble
+          end if;
         when 55 =>
-          data_wr <= X"49";
-        when 56 =>
-          data_wr <= X"4D";
-        when 57 =>
-          data_wr <= X"49";
+          if (source = "00") then
+            active_byte <= X"5";  -- R upper nibble
+          elsif (source = "01") then
+            active_byte <= X"5";  -- P upper nibble
+          elsif (source = "10") then
+            active_byte <= X"4";  -- A upper nibble
+          elsif (source ="11") then
+            active_byte <= X"5";  -- T upper nibble
+          end if;
         when 58 =>
-          data_wr <= X"E9";
-        when 59 =>
-          data_wr <= X"ED";
-        when 60 =>
-          data_wr <= X"E9";
+          if (source = "00") then
+            active_byte <= X"2";  -- R lower nibble
+          elsif (source = "01") then
+            active_byte <= X"0";  -- P lower nibble
+          elsif (source = "10") then
+            active_byte <= X"1";  -- A lower nibble
+          elsif (source ="11") then
+            active_byte <= X"4";  -- T lower nibble
+          end if;
         when 61 =>
-          data_wr <= X"49";
-        when 62 =>
-          data_wr <= X"4D";
-        when 63 =>
-          data_wr <= X"49";
+          active_byte <= X"C"; -- Change line upper nibble
         when 64 =>
-          data_wr <= X"B9";
-        when 65 =>
-          data_wr <= X"BD";
-        when 66 =>
-          data_wr <= X"B9";
+          active_byte <= X"0"; -- Change line lower nibble
         when 67 =>
-          data_wr <= X"29";
-        when 68 =>
-          data_wr <= X"2D";
-        when 69 =>
-          data_wr <= X"29";
+          active_byte <= X"4"; -- C upper nibble
         when 70 =>
-          data_wr <= X"19";
-        when 71 =>
-          data_wr <= X"1D";
-        when 72 =>
-          data_wr <= X"19";
+          active_byte <= X"3"; -- C lower nibble
+        when 73 =>
+          active_byte <= X"6"; -- l upper nibble
+        when 76 =>
+          active_byte <= X"C"; -- l lower nibble
+        when 79 =>
+          active_byte <= X"6"; -- o upper nibble
+        when 82 =>
+          active_byte <= X"F"; -- o lower nibble
+        when 85 =>
+          active_byte <= X"6"; -- c upper nibble
+        when 88 =>
+          active_byte <= X"3"; -- c lower nibble
+        when 91 =>
+          active_byte <= X"6"; -- k upper nibble
+        when 94 =>
+          active_byte <= X"B"; -- k lower nibble
+        when 97 =>
+          active_byte <= X"2"; -- <Space> upper nibble
+        when 100 =>
+          active_byte <= X"0"; -- <Space> lower nibble
+        when 103 =>
+          active_byte <= X"4"; -- O upper nibble
+        when 106 =>
+          active_byte <= X"F"; -- O lower nibble
+        when 109 =>
+          active_byte <= X"7"; -- u upper nibble
+        when 112 =>
+          active_byte <= X"5"; -- u lower nibble
+        when 115 =>
+          active_byte <= X"7"; -- t upper nibble
+        when 118 =>
+          active_byte <= X"4"; -- t lower nibble
+        when 121 =>
+          active_byte <= X"7"; -- p upper nibble
+        when 124 =>
+          active_byte <= X"0"; -- p lower nibble
+        when 127 =>
+          active_byte <= X"7"; -- u upper nibble
+        when 130 =>
+          active_byte <= X"5"; -- u lower nibble
+        when 133 =>
+          active_byte <= X"7"; -- t upper nibble
+        when 136 =>
+          active_byte <= X"4"; -- t lower nibble
+        when 139 =>
+          active_byte <= X"3"; -- : upper nibble
+        when 142 =>
+          active_byte <= X"A"; -- : lower nibble
+        when 145 =>
+          active_byte <= X"4"; -- O upper nibble
+        when 147 =>
+          active_byte <= X"F"; -- O upper nibble
+        when 151 =>
+          if (Generation = '1') then
+            active_byte <= X"6";        -- n upper nibble
+          elsif (Generation = '0') then
+            active_byte <= X"6";        -- f upper nibble
+          end if;
+        when 154 =>
+          if (Generation = '1') then
+            active_byte <= X"E";        -- n lower nibble
+          elsif (Generation = '0') then
+            active_byte <= X"6";        -- f lower nibble
+          end if;
+        when 157 =>
+          if (Generation = '1') then
+            active_byte <= X"2"; -- <Space> upper nibble
+          elsif (Generation = '0') then
+            active_byte <= X"6";        -- f upper nibble
+          end if;
+        when 160 =>
+          if (Generation = '1') then
+            active_byte <= X"0";      -- <Space> lower nibble
+          elsif (Generation = '0') then
+            active_byte <= X"6";        -- f lower nibble
+          end if;
 
         when others =>
           -- DO NOTHING
