@@ -38,6 +38,7 @@ architecture archclk_gen of clk_gen is
   signal increment : integer := 327; -- (delta 2 - delta 1) / 255
   signal delta_1 : integer := 41667; -- delta 1 constant: ( .5 * ( 1/1500 ) ) / sys_period
   signal clock_toggler : std_logic := '0';
+  signal test_input: std_logic_vector(7 downto 0) := X"4D";
 
 begin
 
@@ -71,10 +72,13 @@ begin
       counter <= 0;
       cnt_out <= (others => '0');
     elsif (rising_edge(I_CLK_125MHZ)) then
-      counter <= delta_1 + increment * to_integer(unsigned(Data_in));  -- KAB get the value counted to
+      counter <= delta_1 + increment * to_integer(unsigned(test_input));  -- KAB get the value counted to
       cnt_out <= cnt_out + 1;
-      if (cnt_out = to_unsigned(counter, 8)) then  -- KAB this comes from numeric_std library reference: nandland.com
-        Clock_out <= not(clock_toggler);  -- toggle clock output
+
+      -- Clock_out <= not(clock_toggler);  -- toggle clock output
+      if (cnt_out = to_unsigned(counter, 16)) then  -- KAB this comes from numeric_std library reference: nandland.com
+        clock_toggler <= not(clock_toggler);  -- toggle clock output
+        cnt_out <= (others => '0');
       end if;
     end if;
   end process;
@@ -123,5 +127,7 @@ begin
 	-- 		reg_out <= mux2_out;
 	-- 	end if;
   -- end process reg;
+
+    Clock_out <= clock_toggler;  -- toggle clock output
 
 end archclk_gen;
