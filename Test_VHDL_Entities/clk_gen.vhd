@@ -49,7 +49,8 @@ begin
 	constant delta_1 : integer := (1/1500) * (1/2);
 	constant delta_2 : integer := (1/500) * (1/2);
 	
-	delta <= (delta_1 + (((delta_2 - delta_1)/255) * Data_in)
+	constant delta_tmp : integer := ((delta_2 - delta_1) / 255);
+	delta <= delta_1 + (delta_tmp * Data_in)
 	
 	--change cnt_out
     cnt : process(I_CLK_125MHz, I_RESET_N)
