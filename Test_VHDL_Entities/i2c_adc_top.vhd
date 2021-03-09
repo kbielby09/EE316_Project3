@@ -38,9 +38,9 @@ entity i2c_adc_top is
 
    BTN1 : in std_logic;
    LCD_SDA : inout std_logic;
-   LCD_SCL : inout std_logic;
-   ADC_SDA : inout std_logic;
-   ADC_SCL : inout std_logic
+   LCD_SCL : inout std_logic
+   -- ADC_SDA : inout std_logic;
+   -- ADC_SCL : inout std_logic
  );
 end i2c_adc_top;
 
@@ -74,7 +74,7 @@ begin
   I_RESET_N    => I_RESET,
   I_CLK_125MHZ => I_CLK_125MHZ,
   SDA          => LCD_SDA,
-  SCL          => LCD_SCL  -- TODO add comma after created
+  SCL          => LCD_SCL,  -- TODO add comma after created
   Generation   => clock_enable,
   source       => adc_source
   );
@@ -93,8 +93,8 @@ begin
               when "01" =>
                 adc_source <= "10"; -- Change input to TEMP
               when "10" =>
-                adc_source <= "00"; -- Change input to POT
-              when others =>
+                adc_source <= "11"; -- Change input to POT
+              when "11" =>
                 adc_source <= "00"; -- Change to LDR
             end case;
           end if;
