@@ -37,6 +37,7 @@ architecture archclk_gen of clk_gen is
   signal counter : integer;
   signal increment : integer := 327; -- (delta 2 - delta 1) / 255
   signal delta_1 : integer := 41667; -- delta 1 constant: ( .5 * ( 1/1500 ) ) / sys_period
+  signal clock_toggler : std_logic := '0';
 
 begin
 
@@ -66,14 +67,14 @@ begin
   -- KAB not sure how to use what you have for processes so this is what I made
   KAB_COUNTER : process(I_CLK_125MHZ, I_RESET_N)
   begin
-    if (I_RESET_N) then
+    if (I_RESET_N = '1') then
       counter <= 0;
       cnt_out <= (others => '0');
     elsif (rising_edge(I_CLK_125MHZ)) then
-      counter <= delta_1 + increment * Data_in;  -- KAB get the value counted to
-      cnt_out <= cnt_out + '1';
+      counter <= delta_1 + increment * to_integer(unsigned(Data_in));  -- KAB get the value counted to
+      cnt_out <= cnt_out + 1;
       if (cnt_out = to_unsigned(counter, 8)) then  -- KAB this comes from numeric_std library reference: nandland.com
-        Clock_out <= not Clock_out;  -- toggle clock output
+        Clock_out <= not(clock_toggler);  -- toggle clock output
       end if;
     end if;
   end process;
