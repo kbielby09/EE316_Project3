@@ -35,99 +35,26 @@ architecture archclk_gen of clk_gen is
 
   -- Signals created by Kyle
   signal counter : integer;
-  signal increment : integer := 327; -- (delta 2 - delta 1) / 255
-  signal delta_1 : integer := 41667; -- delta 1 constant: ( .5 * ( 1/1500 ) ) / sys_period
+  signal increment : integer := 131; -- (delta 2 - delta 1) / 255
+  signal delta_1 : integer := 50000; -- delta 1 constant: ( .5 * ( 1/1500 ) ) / sys_period
   signal clock_toggler : std_logic := '0';
-  signal test_input: std_logic_vector(7 downto 0) := X"4D";
+  signal test_input: std_logic_vector(7 downto 0) := X"FF";
 
 begin
-
-	--changing 0-255 to 500 - 1500
-	--tmp_a <= "11111111" - Data_in;
-	-- new_data <= ((256 - Data_in) * (1000 / 255)) + 500;  --idk if this is how you do this  -- KAB: NOTE: the equation I believe is correct, but I do not believe you can do integer arithmetic on an unsigned data type
-
--- KAB commented out for testing purposes
-	--change cnt_out
-  --   cnt : process(I_CLK_125MHz, I_RESET_N)
-  --   begin
-  --       if(I_RESET_N = '1') then
-  --           cnt_out <= (others => '0');
-  --
-  --       elsif(rising_edge(I_CLK_125MHz)) then
-  --
-  --            --if (std_logic_vector(eightBitCounter) <= Data_in) then
-  --               -- Clock_out <= '1';
-  --               -- --add counter to register value
-  --
-  --           -- else
-  --           cnt_out <= cnt_out + 1;
-  --       -- end if;
-  --    end if;
-  -- end process cnt;
 
   -- KAB not sure how to use what you have for processes so this is what I made
   KAB_COUNTER : process(I_CLK_125MHZ, I_RESET_N)
   begin
-    if (I_RESET_N = '1') then
-      counter <= 0;
-      cnt_out <= (others => '0');
-    elsif (rising_edge(I_CLK_125MHZ)) then
-      counter <= delta_1 + increment * to_integer(unsigned(test_input));  -- KAB get the value counted to
+   if (rising_edge(I_CLK_125MHZ)) then
+      counter <= (delta_1 + increment * to_integer(unsigned(test_input))) / 2;  -- KAB get the value counted to
       cnt_out <= cnt_out + 1;
-
-      -- Clock_out <= not(clock_toggler);  -- toggle clock output
-      if (cnt_out = to_unsigned(counter, 16)) then  -- KAB this comes from numeric_std library reference: nandland.com
+       if (cnt_out = to_unsigned(counter, 16)) then  -- KAB this comes from numeric_std library reference: nandland.com
         clock_toggler <= not(clock_toggler);  -- toggle clock output
         cnt_out <= (others => '0');
-      end if;
+       end if;
     end if;
   end process;
 
-  -- KAB commented out for testing purposes
-  --changing mux1_out and mux2_out
-  -- add : process (I_CLK_125MHz) --need seperate process?
-	-- begin
-	-- 	if (rising_edge(I_CLK_125MHz)) then
-	-- 		if(I_RESET_N = '0') then
-	-- 			if(comp_out = '1') then
-	-- 				mux2_out <= cnt_out + reg_out;
-	-- 			else
-	-- 				mux1_out <= reg_out;
-	-- 			end if;
-	-- 		else
-	-- 			mux2_out <= new_data;
-	-- 		end if;
-	-- 	end if;
-  -- end process add;
-
--- KAB commented out for testing purposes
---changing comp_out
-  -- comp : process (I_CLK_125MHz)
-	-- begin
-	-- 	if (rising_edge(I_CLK_125MHz)) then
-	-- 		if(cnt_out = reg_out) then
-	-- 			comp_out <= '1';
-	-- 			--toggling Clock_out
-	-- 			if(Clock_out = '0') then
-	-- 				Clock_out <= '1';
-	-- 			else
-	-- 				Clock_out <= '0';
-	-- 			end if;
-	-- 		else
-	-- 			comp_out <= '0';
-	-- 		end if;
-	-- 	end if;
-  -- end process comp;
-
--- KAB commented out for testing purposes
---changing reg_out
-  -- reg : process (I_CLK_125MHz)
-	-- begin
-	-- 	if (rising_edge(I_CLK_125MHz)) then
-	-- 		reg_out <= mux2_out;
-	-- 	end if;
-  -- end process reg;
-
-    Clock_out <= clock_toggler;  -- toggle clock output
+  Clock_out <= clock_toggler;
 
 end archclk_gen;
