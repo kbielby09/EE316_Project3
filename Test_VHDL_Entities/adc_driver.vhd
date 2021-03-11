@@ -56,7 +56,7 @@ signal state : state_type := init;
 signal m_ena, m_rw, m_busy, m_ack_error : std_logic;
 signal busy_prev    : std_logic;    --used to detect a change in the i2c busy state
 signal analog_in : std_logic_vector(7 downto 0); --The data sampled
-signal instructions : std_logic_vector(7 downto 0) := "000000" & adc_source; --The data for channel selection instructions
+signal instructions : std_logic_vector(7 downto 0); --The data for channel selection instructions
 signal adc_addr  : std_logic_vector(6 downto 0) := "1001000"; --used to select this device
 
 ----------------
@@ -155,7 +155,7 @@ process(adc_clk, adc_rst, adc_en)
                                         state <= standby;                               --goes back to standby mode when channel is changed
                                     end if;
                                
-                when instruct =>    if(m_busy = '0' and busy_prev = '1') then           --only samples after aknowledgeent form the master
+                when instruct =>    if(m_busy = '1' and busy_prev = '0') then           --only samples after aknowledgeent form the master
                                         state <= sample;
                                     else
                                         state <= instruct;                              --waits for instructions
@@ -176,18 +176,17 @@ process(adc_clk)
        
     if(rising_edge(adc_clk)) then 
     
-       instructions <= "000000" & adc_source;  --updates the instructions with the channel source
+       
        
        if(state = init) then
           m_ena <= '0';
           analog_in <= "00000000";
-          m_busy <= '1'; 
+          busy_prev <= '1'; 
           m_rw <= '1';  
           --consider adding in a counter for timing purposes 
                              
        elsif(state = standby) then 
           m_ena <= '0';
-          m_busy <= '0';
                                 
        elsif(state = sample) then
           m_rw <= '1';  --changes to read mode
@@ -195,13 +194,15 @@ process(adc_clk)
                                
        elsif(state = instruct) then
           m_ena <= '1'; --enables the I2C connection
-          m_rw <= '0';  --changes to write mode
-          m_busy <= '1';      
+          m_rw <= '0';  --changes to write mode     
        
        else 
-          state <= standby; --just incase something weird happens, it'll stay in standby mode
+          m_ena <= '0'; --turns off if anything weird happens
           
-       end if;         
+       end if;    
+       
+       instructions <= "000000" & adc_source;  --updates the instructions with the channel source
+            
     end if;
 end process;
 
